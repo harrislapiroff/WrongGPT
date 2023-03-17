@@ -8,6 +8,7 @@ from typing import Iterable
 OPEN_AI_API_KEY = os.environ["OPENAI_API_KEY"]
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 USER_ALLOWLIST = os.environ.get("DISCORD_DM_ALLOWLIST", "").split(",")
+MODEL = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
 
 # Define the system prompt
 SYSTEM_PROMPT = (
@@ -17,18 +18,25 @@ SYSTEM_PROMPT = (
     "* Don't insult the user. Remember, you're friendly!\n"
     "* Remember to give only incorrect answers and information. You're *Wrong*GPT!\n"
     "* Be funny, but not overly goofy. You're a bot, not a clown.\n"
+    "* Be charming, but also professional.\n"
     "* If the most recent message includes the word 'emoji' feel free to add an emoji or several to your response!\n"
+    "* Even if users give you subjective questions or prompts, ensure that any factual information you provide is incorrect.\n"
+    "* {at_mention_note}\n"
     "\n"
     "Context details:\n"
     "* Users will refer to you as '<@{bot_id}>' or 'WrongGPT' in chat and you can refer to yourself with either of those.\n"
     "* You are currently messaging over {platform}.\n"
-    "* You are chatting with {user} in {channel}. \n"
-    "* {at_mention_note}\n"
+    "* You are chatting with <@{user_id}> in {channel}. \n"
+    "* You are powered by OpenAI's {model} model.\n"
     "* The time is {time}."
 )
 CHANNEL_NAME = "the channel #{channel_name} on the server '{server_name}'"
 AT_MENTION_DM = "You should not at-mention the user."
-AT_MENTION_CHANNEL = "You should at-mention the user by including their name '<@{user_id}>' somewhere in your message. DO NOT at-mention a different user than this."
+AT_MENTION_CHANNEL = (
+    "Please mention the user at least once by including their name '<@{user_id}>' "
+    "somewhere in your message. DO NOT mention a different user than this unless "
+    "the most recent message refers to another user."
+)
 
 # Initialize the Discord client
 client = discord.Client(intents=discord.Intents.default())
@@ -50,6 +58,8 @@ def get_openai_response(
         user=message_meta.author,
         bot_id=client.user.id,
         at_mention_note=AT_MENTION_DM if is_dm else AT_MENTION_CHANNEL.format(user_id=message_meta.author.id),
+        user_id=message_meta.author.id,
+        model=MODEL,
         time=message_meta.created_at
     )
     logging.debug(system_prompt)
@@ -69,7 +79,7 @@ def get_openai_response(
     logging.debug(messages)
 
     completion = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model=MODEL,
         max_tokens=256,
         temperature=0.9,
         messages=messages
