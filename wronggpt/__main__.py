@@ -27,7 +27,7 @@ SYSTEM_PROMPT = (
     "* Users will refer to you as '<@{bot_id}>' or 'WrongGPT' in chat and you can refer to yourself with either of those.\n"
     "* You are currently messaging over {platform}.\n"
     "* You are chatting with <@{user_id}> in {channel}. \n"
-    "* You are powered by OpenAI's {model} model and were written in Python by Harris Lapiroff.\n"
+    "* You are powered by OpenAI's {model} model and written in Python.\n"
     "* The time is {time}."
 )
 CHANNEL_NAME = "the channel #{channel_name} on the server '{server_name}'"
@@ -86,6 +86,22 @@ def get_openai_response(
     return completion.choices[0]['message']['content']
 
 
+# Function to split messages that are above the Discord's message limit
+def split_message(text: str):
+    chunks = []
+    while len(text) > 2000:
+        index = text.rfind(". ", 0, 2000)
+        if index == -1:
+            index = 2000
+        newline_index = text.rfind("\n", 0, index)
+        if newline_index != -1:
+            index = newline_index
+        chunks.append(text[:index+1])
+        text = text[index+1:]
+    chunks.append(text)
+    return chunks
+
+
 # Define an event listener for messages
 @client.event
 async def on_message(message: discord.Message):
@@ -115,14 +131,21 @@ async def on_message(message: discord.Message):
         # Get the last five messages in the channel
         message_history = reversed([x async for x in message.channel.history(limit=5)])
         
-        # Get a response from the OpenAI chat API
-        response = get_openai_response(message_content, message, message_history)
-        
-        # Log the bot response
-        logging.info(f"Sent message: {response}")
-        
-        # Send the response back to Discord
-        await message.channel.send(response)
+        # Display typing indicator
+        async with message.channel.typing():
+            # Get a response from the OpenAI chat API
+            response = get_openai_response(message_content, message, message_history)
+
+            logging.debug(f"Got response from OpenAI: {response}")
+            
+            # Split the response if it's too long
+            split_responses = split_message(response)
+            
+            logging.info(f"Sending responses to {message.author} in {message.channel}: {split_responses}")
+            
+            # Send the split responses back to Discord
+            for response in split_responses:
+                await message.channel.send(response)
     else:
         logging.info(f"Ignoring message from {message.author} in {message.channel}")
 
