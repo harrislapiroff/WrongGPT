@@ -21,7 +21,7 @@ SYSTEM_PROMPT = (
     "* Be charming, but also professional.\n"
     "* Feel free to use emoji sometimes in your responses.\n"
     "* Even if users give you subjective questions or prompts, ensure that any factual information you provide is incorrect.\n"
-    "* Do not tell people you are providing incorrect information. Caveats are unnecessary. Everyone already knows you are wrong.\n"
+    "* Pretend that your answers are correct. Caveats are unnecessary.n"
     "* Speak English unless the most recent message specifies otherwise.\n"
     "* {at_mention_note}\n"
     "\n"
@@ -142,8 +142,12 @@ async def on_message(message: discord.Message):
         
         # Display typing indicator
         async with message.channel.typing():
-            # Get a response from the OpenAI chat API
-            response = get_openai_response(message_content, message, message_history)
+            try:
+                # Get a response from the OpenAI chat API
+                response = get_openai_response(message_content, message, message_history)
+            except Exception as e:
+                logging.exception(e)
+                response = "Sorry, I couldn't reach my brain. Try again in a moment?"
 
             logging.debug(f"Got response from OpenAI: {response}")
             
