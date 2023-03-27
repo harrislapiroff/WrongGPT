@@ -49,22 +49,22 @@ client = discord.Client(intents=discord.Intents.default())
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
 # Define a function to get a response from the OpenAI chat API
-def get_openai_response(
-    message: str,
-    message_meta: discord.Message,
-    message_history: Iterable[discord.Message]
-):
-    is_dm = isinstance(message_meta.channel, discord.DMChannel)
+def get_openai_response(message_history: Iterable[discord.Message]):
+    # Make sure it's a list, so we can access the last element
+    message_history = list(message_history)
+    message = message_history[-1]
+    is_dm = isinstance(message.channel, discord.DMChannel)
+
     # Add context details to the system prompt
     system_prompt = SYSTEM_PROMPT.format(
         platform="Discord",
-        channel="a direct message" if is_dm else CHANNEL_NAME.format(channel_name=message_meta.channel.name, server_name=message_meta.guild.name),
-        user=message_meta.author,
+        channel="a direct message" if is_dm else CHANNEL_NAME.format(channel_name=message.channel.name, server_name=message.guild.name),
+        user=message.author,
         bot_id=client.user.id,
-        at_mention_note=AT_MENTION_DM if is_dm else AT_MENTION_CHANNEL.format(user_id=message_meta.author.id),
-        user_id=message_meta.author.id,
+        at_mention_note=AT_MENTION_DM if is_dm else AT_MENTION_CHANNEL.format(user_id=message.author.id),
+        user_id=message.author.id,
         model=MODEL,
-        time=message_meta.created_at
+        time=message.created_at
     )
     logging.debug(system_prompt)
 
@@ -85,7 +85,7 @@ def get_openai_response(
     completion = openai.ChatCompletion.create(
         model=MODEL,
         max_tokens=256,
-        temperature=0.9,
+        temperature=0.7,
         messages=messages
     )
     return completion.choices[0]['message']['content']
@@ -132,11 +132,6 @@ async def on_message(message: discord.Message):
         allowed = True
 
     if allowed:
-        # Log the incoming message
-        
-        # Get the text of the mention
-        message_content = message.content.replace(f"<@!{client.user.id}>", "").strip()
-        
         # Get the last five messages in the channel
         message_history = reversed([x async for x in message.channel.history(limit=5)])
         
@@ -144,7 +139,7 @@ async def on_message(message: discord.Message):
         async with message.channel.typing():
             try:
                 # Get a response from the OpenAI chat API
-                response = get_openai_response(message_content, message, message_history)
+                response = get_openai_response(message_history)
             except Exception as e:
                 logging.exception(e)
                 response = "Sorry, I couldn't reach my brain. Try again in a moment?"
