@@ -49,7 +49,7 @@ client = discord.Client(intents=discord.Intents.default())
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
 # Define a function to get a response from the OpenAI chat API
-def get_openai_response(message_history: Iterable[discord.Message]):
+async def get_openai_response(message_history: Iterable[discord.Message]):
     # Make sure it's a list, so we can access the last element
     message_history = list(message_history)
     message = message_history[-1]
@@ -139,7 +139,7 @@ async def on_message(message: discord.Message):
         async with message.channel.typing():
             try:
                 # Get a response from the OpenAI chat API
-                response = get_openai_response(message_history)
+                response = await get_openai_response(message_history)
             except Exception as e:
                 logging.exception(e)
                 response = "Sorry, I couldn't reach my brain. Try again in a moment?"
