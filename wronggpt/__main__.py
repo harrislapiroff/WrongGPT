@@ -2,8 +2,12 @@ import os
 import discord
 import openai
 import logging
+from datetime import datetime, timedelta, timezone
+from pprint import pprint
 
 from typing import Iterable
+
+from .utils import num_tokens_from_messages
 
 OPEN_AI_API_KEY = os.environ["OPENAI_API_KEY"]
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
@@ -82,9 +86,17 @@ async def get_openai_response(message_history: Iterable[discord.Message]):
             messages.append({"role": "user", "content": msg.content})
     logging.debug(messages)
 
+    # Remove messages from the history until the token count is below 1000
+    # Theoretically we could go as high as 1024, but we want to leave some room for undercounting
+    while token_count := num_tokens_from_messages(messages) > 1000:
+        messages.pop(1)  # remove the oldest message, not counting the token prompt
+        logging.debug(f"Removed message from history to reduce token count to {token_count}")
+        assert token_count > 0, "Token count was negative, this should never happen!"
+    
+    # Get the response from OpenAI
     completion = openai.ChatCompletion.create(
         model=MODEL,
-        max_tokens=256,
+        max_tokens=3072,
         temperature=0.7,
         messages=messages
     )
@@ -132,8 +144,9 @@ async def on_message(message: discord.Message):
         allowed = True
 
     if allowed:
-        # Get the last five messages in the channel
-        message_history = reversed([x async for x in message.channel.history(limit=5)])
+        five_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
+        # Get the last five minutes of messages in the channel
+        message_history = sorted([x async for x in message.channel.history(after=five_minutes_ago)], key=lambda x: x.created_at)
         
         # Display typing indicator
         async with message.channel.typing():
